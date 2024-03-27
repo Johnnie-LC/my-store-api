@@ -1,46 +1,90 @@
 const express = require('express')
-const { faker } = require('@faker-js/faker')
+const ProductServices = require('./../services/product.services')
+const validatorHandler = require('./../middlewares/validator.handler')
+const {
+  createProductSchema,
+  updateProductSchema,
+  getProductSchema} = require('./../schema/product.schema')
 
 const router = express.Router()
 
-router.get('/', (req, res)=>{
-  const products = []
-  const { size } = req.query
-  const limit = parseInt(size) || 10
+const services = new ProductServices()
 
-  for(let index = 0; index < limit; index++){
-    products.push({
-      id: faker.id,
-      name: faker.commerce.productName(),
-      price: parseInt(faker.commerce.price()),
-      image: faker.image.imageUrl(),
-      index
-    })
-  }
-  res.json(products)
+router.get('/', async (req, res)=>{
+  const products = await services.find()
+  console.log({requestTime: req.requestTime})
+ res.json(products)
 })
 
 router.get('/filter',(req, res)=>{
   res.send('Yo soy un filter')
 })
 
-router.get('/:id', (req, res) => {
-  const { id } = req.params
+router.get('/:id', validatorHandler(getProductSchema, 'params'),
+  async (req, res, next) => {
+    try {
+      const { id } = req.params
+      const product = await services.findOne(id)
 
-  res.json({
-    id,
-    name: 'Producto 1',
-    price: 1000
-  })
+      if(!product){
+        res.status(404).json({
+          message: 'Not found',
+          id
+        })
+      }
+
+      res.status(200).json(product)
+    } catch (error) {
+      next(error)
+    }
+
 })
 
-router.post('/', (req, res)=>{
-  const body = req.body
+router.post('/', validatorHandler(createProductSchema, 'body'),
+  async (req, res)=>{
+    const body = req.body
+    await services.create(body)
 
-  res.json({
-    message: 'created',
-    data: body
+    res.status(201).json({
+      message: 'created',
+      data: body
+    })
   })
+
+router.patch('/:id',
+  validatorHandler(getProductSchema, 'params'),
+  validatorHandler(updateProductSchema, 'body'),
+  async (req, res, next)=>{
+    try {
+      const { id } = req.params
+      const body = req.body
+      const product = await services.update({
+        id,
+        body
+      })
+      res.status(201).json({
+        message: 'update',
+        data: product
+      })
+    } catch (error) {
+
+    next(error)
+    }
+  })
+
+router.delete('/:id', async (req,res, next)=>{
+  try {
+    const { id } = req.params
+    const {id:idDelete} = await services.delete(id)
+
+    res.json({
+      message: 'Deleted',
+      id: idDelete
+    })
+
+  } catch (error) {
+    next(error)
+  }
 
 })
 
